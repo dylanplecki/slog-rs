@@ -3389,7 +3389,7 @@ where
 /// be used directly.
 #[cfg(any(feature = "std", feature = "error_in_core"))]
 #[doc(hidden)]
-pub struct ErrorTagWrapper<E>(E);
+pub struct ErrorTagWrapper<E>(pub E);
 
 #[cfg(any(feature = "std", feature = "error_in_core"))]
 #[test]
