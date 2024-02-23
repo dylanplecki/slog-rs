@@ -113,6 +113,9 @@ jobs:
       - name: Test
         run: |
           cargo test --all-targets --verbose --features "${{ matrix.features }}"
+      - name: Test (no default features)
+        run: |
+          cargo test --all-targets --verbose --no-default-features --features "${{ matrix.features }}"
 
         # We require tests to succeed on all the feature combinations.
         #

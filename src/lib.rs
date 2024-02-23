@@ -4052,7 +4052,7 @@ impl core::fmt::Display for Error {
 
 #[cfg(all(not(feature = "std"), feature = "error_in_core"))]
 impl core::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match *self {
             Error::Fmt(ref e) => e.fmt(fmt),
             Error::Other => fmt.write_str("Other serialization error"),
