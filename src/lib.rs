@@ -279,7 +279,10 @@
 // {{{ Imports & meta
 #![warn(missing_docs)]
 #![deny(rust_2018_idioms)]
+#![allow(unused_extern_crates)]
 #![no_std]
+#![cfg_attr(feature = "error_in_core", feature(error_in_core))]
+#![cfg_attr(feature = "ip_in_core", feature(ip_in_core))]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
@@ -2029,10 +2032,10 @@ where
 }
 
 #[cfg(feature = "std")]
-impl<D> std::error::Error for MutexDrainError<D>
+impl<D> StdError for MutexDrainError<D>
 where
     D: Drain,
-    D::Err: fmt::Debug + fmt::Display + std::error::Error,
+    D::Err: fmt::Debug + fmt::Display + StdError,
 {
     // Deprecated in Rust 1.42
     #[allow(deprecated)]
@@ -2043,7 +2046,7 @@ where
         }
     }
 
-    fn cause(&self) -> Option<&dyn std::error::Error> {
+    fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             MutexDrainError::Mutex => None,
             MutexDrainError::Drain(ref e) => Some(e),
@@ -2753,7 +2756,7 @@ pub trait Serializer {
         value.serialize_fallback(key, &mut SerializerForward(self))
     }
 
-    /// Emit a type implementing `std::error::Error`
+    /// Emit a type implementing [StdError]
     ///
     /// Error values are a bit special as their `Display` implementation doesn't show full
     /// information about the type but must be retrieved using `source()`. This can be used
@@ -2765,11 +2768,11 @@ pub trait Serializer {
     ///
     /// This method is only available in `std` because the `Error` trait is not available
     /// without `std`.
-    #[cfg(feature = "std")]
+    #[cfg(any(feature = "std", feature = "error_in_core"))]
     fn emit_error(
         &mut self,
         key: Key,
-        error: &(dyn std::error::Error + 'static),
+        error: &(dyn StdError + 'static),
     ) -> Result {
         self.emit_arguments(key, &format_args!("{}", ErrorAsFmt(error)))
     }
@@ -2864,14 +2867,14 @@ impl<'a> fmt::Display for BytesAsFmt<'a> {
     }
 }
 
-/// A helper for formatting std::error::Error types by joining sources with `: `
+/// A helper for formatting [StdError] types by joining sources with `: `
 ///
 /// This avoids allocation in the default implementation of `Serializer::emit_error()`.
 /// This is only enabled with `std` as the trait is only available there.
-#[cfg(feature = "std")]
-struct ErrorAsFmt<'a>(pub &'a (dyn std::error::Error + 'static));
+#[cfg(any(feature = "std", feature = "error_in_core"))]
+struct ErrorAsFmt<'a>(pub &'a (dyn StdError + 'static));
 
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 impl<'a> fmt::Display for ErrorAsFmt<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // For backwards compatibility
@@ -3226,6 +3229,18 @@ impl Value for std::net::SocketAddr {
     }
 }
 
+#[cfg(all(not(feature = "std"), feature = "ip_in_core"))]
+impl Value for core::net::SocketAddr {
+    fn serialize(
+        &self,
+        _record: &Record<'_>,
+        key: Key,
+        serializer: &mut dyn Serializer,
+    ) -> Result {
+        serializer.emit_arguments(key, &format_args!("{}", self))
+    }
+}
+
 #[cfg(feature = "std")]
 impl Value for std::io::Error {
     fn serialize(
@@ -3372,11 +3387,11 @@ where
 ///
 /// This is an internal implementation detail of the `kv!` macro and should not
 /// be used directly.
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 #[doc(hidden)]
 pub struct ErrorTagWrapper<E>(E);
 
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 #[test]
 fn test_error_tag_wrapper() {
     #[derive(Debug, Clone, Copy)]
@@ -3386,7 +3401,7 @@ fn test_error_tag_wrapper() {
             f.write_str(self.0)
         }
     }
-    impl std::error::Error for MyError {}
+    impl StdError for MyError {}
     let e = MyError("everything is on fire");
     assert_eq!(
         {
@@ -3404,16 +3419,16 @@ fn test_error_tag_wrapper() {
 ///
 /// This is an internal implementation detail of the `kv!` macro and should not
 /// be used directly.
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 #[doc(hidden)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ErrorValueTag;
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 impl ErrorValueTag {
     /// Create a [`Value`] wrapper for an owned error value.
     pub fn wrap<E>(self, e: E) -> ErrorValue<E>
     where
-        E: std::error::Error,
+        E: StdError,
     {
         ErrorValue(e)
     }
@@ -3423,7 +3438,7 @@ impl ErrorValueTag {
 ///
 /// This is an internal implementation detail of the `kv!` macro and should not
 /// be used directly.
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 #[doc(hidden)]
 pub trait ErrorValueKind {
     #[inline]
@@ -3431,23 +3446,23 @@ pub trait ErrorValueKind {
         ErrorValueTag
     }
 }
-#[cfg(feature = "std")]
-impl<E: std::error::Error> ErrorValueKind for ErrorTagWrapper<E> {}
+#[cfg(any(feature = "std", feature = "error_in_core"))]
+impl<E: StdError> ErrorValueKind for ErrorTagWrapper<E> {}
 
 /// Unit struct indicating that the content of `ErrorTagWrapper` was a reference.
 ///
 /// This is an internal implementation detail of the `kv!` macro and should not
 /// be used directly.
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 #[doc(hidden)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ErrorRefTag;
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 impl ErrorRefTag {
     /// Create a [`Value`] wrapper for an error reference.
     pub fn wrap<E>(self, e: &E) -> ErrorRef<'_, E>
     where
-        E: ?Sized + 'static + std::error::Error,
+        E: ?Sized + 'static + StdError,
     {
         ErrorRef(e)
     }
@@ -3457,7 +3472,7 @@ impl ErrorRefTag {
 ///
 /// This is an internal implementation detail of the `kv!` macro and should not
 /// be used directly.
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 #[doc(hidden)]
 pub trait ErrorRefKind {
     #[inline]
@@ -3468,31 +3483,37 @@ pub trait ErrorRefKind {
         ErrorRefTag
     }
 }
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 impl<ERef> ErrorRefKind for &&ErrorTagWrapper<ERef>
 where
     ERef: core::ops::Deref,
-    ERef::Target: std::error::Error,
+    ERef::Target: StdError,
 {
 }
+
+#[cfg(feature = "std")]
+use std::error::Error as StdError;
+
+#[cfg(all(not(feature = "std"), feature = "error_in_core"))]
+use core::error::Error as StdError;
 
 /// A wrapper struct for serializing errors
 ///
 /// This struct can be used to wrap types that don't implement `slog::Value` but
-/// do implement `std::error::Error` so that they can be logged.
+/// do implement [StdError] so that they can be logged.
 /// This is usually not used directly but using `#error` in the macros.
 ///
 /// This struct is only available in `std` because the `Error` trait is not available
 /// without `std`.
 ///
 /// Use [`ErrorRef`] if you have an error reference.
-#[cfg(feature = "std")]
-pub struct ErrorValue<E: std::error::Error>(pub E);
+#[cfg(any(feature = "std", feature = "error_in_core"))]
+pub struct ErrorValue<E: StdError>(pub E);
 
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 impl<E> Value for ErrorValue<E>
 where
-    E: 'static + std::error::Error,
+    E: 'static + StdError,
 {
     fn serialize(
         &self,
@@ -3507,20 +3528,20 @@ where
 /// A wrapper struct for serializing errors references.
 ///
 /// This struct can be used to wrap types that don't implement `slog::Value` but
-/// do implement `std::error::Error` so that they can be logged.
+/// do implement [StdError] so that they can be logged.
 /// This is usually not used directly but using `#error` in the macros.
 ///
 /// This struct is only available in `std` because the `Error` trait is not available
 /// without `std`.
 ///
 /// Use [`ErrorValue`] if you want to move ownership of the error value.
-#[cfg(feature = "std")]
-pub struct ErrorRef<'a, E: ?Sized + std::error::Error>(pub &'a E);
+#[cfg(any(feature = "std", feature = "error_in_core"))]
+pub struct ErrorRef<'a, E: ?Sized + StdError>(pub &'a E);
 
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", feature = "error_in_core"))]
 impl<'a, E> Value for ErrorRef<'a, E>
 where
-    E: 'static + std::error::Error,
+    E: 'static + StdError,
 {
     fn serialize(
         &self,
@@ -3979,7 +4000,7 @@ impl From<Error> for std::io::Error {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for Error {
+impl StdError for Error {
     // Deprecated in Rust 1.42
     #[allow(deprecated)]
     fn description(&self) -> &str {
@@ -3990,9 +4011,28 @@ impl std::error::Error for Error {
         }
     }
 
-    fn cause(&self) -> Option<&dyn std::error::Error> {
+    fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             Error::Io(ref e) => Some(e),
+            Error::Fmt(ref e) => Some(e),
+            Error::Other => None,
+        }
+    }
+}
+
+#[cfg(all(not(feature = "std"), feature = "error_in_core"))]
+impl StdError for Error {
+    // Deprecated in Rust 1.42
+    #[allow(deprecated)]
+    fn description(&self) -> &str {
+        match *self {
+            Error::Fmt(_) => "formatting error",
+            Error::Other => "serialization error",
+        }
+    }
+
+    fn cause(&self) -> Option<&dyn StdError> {
+        match *self {
             Error::Fmt(ref e) => Some(e),
             Error::Other => None,
         }
@@ -4004,6 +4044,16 @@ impl core::fmt::Display for Error {
     fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             Error::Io(ref e) => e.fmt(fmt),
+            Error::Fmt(ref e) => e.fmt(fmt),
+            Error::Other => fmt.write_str("Other serialization error"),
+        }
+    }
+}
+
+#[cfg(all(not(feature = "std"), feature = "error_in_core"))]
+impl core::fmt::Display for Error {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
             Error::Fmt(ref e) => e.fmt(fmt),
             Error::Other => fmt.write_str("Other serialization error"),
         }

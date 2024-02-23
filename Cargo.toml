@@ -51,6 +51,9 @@ std = []
 nothreads = []
 default = ["std"]
 
+error_in_core = []
+ip_in_core = []
+
 max_level_off   = []
 max_level_error = []
 max_level_warn  = []
