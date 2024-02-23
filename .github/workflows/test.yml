@@ -92,6 +92,11 @@ jobs:
             features: "nothreads"
           - rust: 1.49
             features: "nothreads dynamic-keys" # All (supported) features
+          # Add nightly-only features to the matrix.
+          - rust: nightly
+            features: "error_in_core"
+          - rust: nightly
+            features: "ip_in_core"
 
     steps:
       - uses: actions/checkout@v4
