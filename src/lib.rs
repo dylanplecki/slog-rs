@@ -279,6 +279,7 @@
 // {{{ Imports & meta
 #![warn(missing_docs)]
 #![deny(rust_2018_idioms)]
+#![allow(unused_extern_crates)]
 #![no_std]
 #![cfg_attr(feature = "error_in_core", feature(error_in_core))]
 #![cfg_attr(feature = "ip_in_core", feature(ip_in_core))]
